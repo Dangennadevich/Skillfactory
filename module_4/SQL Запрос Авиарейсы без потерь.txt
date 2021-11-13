@@ -1,0 +1,39 @@
+WITH count_seats AS -- Сформируем таблицу "Код самолета - количество посадочных мест"
+
+  (SELECT s1.aircraft_code aircraft_code,
+          count(s1.seat_no) AS seat_total
+   FROM dst_project.seats s1
+   GROUP BY aircraft_code), booking_time AS -- Сформируем таблицу "Номер брони - дата, время брони"
+
+  (SELECT bookings.book_ref book_ref,
+          bookings.total_amount total_amount
+   FROM dst_project.bookings bookings), Airpots_arrival_table AS -- Подготовим таблицу с данными об аэропортах прибытия
+
+  (SELECT a.airport_code AS arrival_airport_code,
+          a.city AS arrival_city,
+          a.latitude AS arrival_latitude,
+          a.longitude AS arrival_longitude,
+          a.timezone AS arrival_timezone
+   FROM dst_project.Airports a), Airport_departure AS -- Подготовим кортеж с данными об аэропорте вылета
+
+  (SELECT a.airport_code AS departure_airport_code,
+          a.city AS departure_city,
+          a.latitude AS departure_latitude,
+          a.longitude AS departure_longitude,
+          a.timezone AS departure_timezone
+   FROM dst_project.Airports a
+   WHERE a.airport_code = 'AAQ')
+SELECT *
+FROM dst_project.flights flights
+LEFT JOIN dst_project.ticket_flights t_f ON flights.flight_id = t_f.flight_id
+LEFT JOIN dst_project.Aircrafts Plane ON flights.aircraft_code = Plane.aircraft_code
+LEFT JOIN dst_project.tickets tickets ON tickets.ticket_no = t_f.ticket_no
+LEFT JOIN count_seats ON flights.aircraft_code = count_seats.aircraft_code
+LEFT JOIN booking_time ON booking_time.book_ref = tickets.book_ref
+LEFT JOIN Airpots_arrival_table ON Airpots_arrival_table.arrival_airport_code = flights.arrival_airport
+LEFT JOIN Airport_departure ON Airport_departure.departure_airport_code = flights.departure_airport
+WHERE flights.departure_airport = 'AAQ'
+  AND (date_trunc('month', scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
+  AND status not in ('Cancelled')
+  AND actual_departure IS NOT NULL -- В таблице будут данные только о совершенных рейсах из аэропорта г.Анапа за год (с 09.2016 по 08.2017 включительно)
+ORDER BY actual_departure
